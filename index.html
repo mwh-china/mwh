@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>2048 · 小游戏</title>
+<style>
+  :root{
+    --bg:#faf8ef; --grid:#bbada0; --cell:rgba(238,228,218,.35);
+    --dark:#776e65; --light:#f9f6f2; --btn:#8f7a66;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  body{
+    margin:0;background:var(--bg);color:var(--dark);
+    font-family:"Clear Sans","Helvetica Neue",Arial,"WenQuanYi Micro Hei",sans-serif;
+    display:flex;justify-content:center;padding:18px 12px 40px;
+  }
+  .wrap{width:100%;max-width:460px}
+  header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  h1{font-size:52px;margin:0;line-height:1;letter-spacing:-2px}
+  .scores{display:flex;gap:8px}
+  .score-box{background:var(--grid);color:var(--light);border-radius:6px;padding:6px 14px;text-align:center;min-width:74px}
+  .score-box span{display:block;font-size:11px;opacity:.75;letter-spacing:1px}
+  .score-box strong{font-size:20px;display:block;margin-top:2px}
+  .bar{display:flex;justify-content:space-between;align-items:center;margin:14px 0 12px;gap:10px;flex-wrap:wrap}
+  .bar p{margin:0;font-size:13px;line-height:1.6;flex:1;min-width:190px}
+  button{font:inherit;cursor:pointer;border:0;border-radius:6px;background:var(--btn);color:var(--light);font-weight:700;padding:10px 16px}
+  button:active{transform:translateY(1px)}
+  .board{position:relative;background:var(--grid);border-radius:8px;padding:10px;width:100%;aspect-ratio:1/1;touch-action:none}
+  .cells{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:10px;height:100%}
+  .cell{background:var(--cell);border-radius:5px}
+  .tiles{position:absolute;inset:10px;pointer-events:none}
+  .tile{
+    position:absolute;
+    width:calc((100% - 30px)/4);height:calc((100% - 30px)/4);
+    left:calc(var(--c) * (100% + 10px) / 4);
+    top:calc(var(--r) * (100% + 10px) / 4);
+    border-radius:5px;display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:clamp(20px,7vw,38px);
+  }
+  .tile.new{animation:appear .18s ease}
+  .tile.merged{animation:bump .2s ease;z-index:2}
+  @keyframes appear{from{transform:scale(.2);opacity:0}to{transform:scale(1);opacity:1}}
+  @keyframes bump{0%{transform:scale(1)}50%{transform:scale(1.18)}100%{transform:scale(1)}}
+  .overlay{
+    position:absolute;inset:0;background:rgba(238,228,218,.82);border-radius:8px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
+    font-size:26px;font-weight:800;text-align:center;padding:16px;line-height:1.4;
+    opacity:0;pointer-events:none;transition:opacity .25s;z-index:5;
+  }
+  .overlay.show{opacity:1;pointer-events:auto}
+  .ov-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .overlay button{font-size:15px}
+  footer{margin-top:14px;font-size:12px;line-height:1.7;color:#9b8b7e;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>2048</h1>
+    <div class="scores">
+      <div class="score-box"><span>得分</span><strong id="score">0</strong></div>
+      <div class="score-box"><span>最高</span><strong id="best">0</strong></div>
+    </div>
+  </header>
+
+  <div class="bar">
+    <p>方向键 / WASD / 手指滑动，把相同数字撞在一起。<br><b>得分到 2048</b> 或 <b>合出 2048 方块</b> 都算赢 🎉</p>
+    <button id="new-game">新游戏</button>
+  </div>
+
+  <div class="board" id="board">
+    <div class="cells" id="cells"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="overlay" id="overlay">
+      <div id="ov-text">游戏结束</div>
+      <div class="ov-btns">
+        <button id="ov-continue">继续挑战</button>
+        <button id="ov-restart">再来一局</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>纯前端单文件 · 无需联网 · 最高分存在本机浏览器</footer>
+</div>
+
+<script>
+(function(){
+  const SIZE = 4;
+  const WIN_SCORE = 2048;
+  const COLORS = {
+    2:'#eee4da', 4:'#ede0c8', 8:'#f2b179', 16:'#f59563',
+    32:'#f67c5f', 64:'#f65e3b', 128:'#edcf72', 256:'#edcc61',
+    512:'#edc850', 1024:'#edc53f', 2048:'#edc22e'
+  };
+  const $ = id => document.getElementById(id);
+  const cellsEl = $('cells'), tilesEl = $('tiles'), boardEl = $('board'), overlay = $('overlay');
+  for (let i=0;i<16;i++){
+    const d=document.createElement('div'); d.className='cell'; cellsEl.appendChild(d);
+  }
+
+  let board, score, best, over, won, keepPlaying, newPos, mergedPos;
+  try { best = parseInt(localStorage.getItem('g2048-best')||'0',10)||0; }
+  catch(e){ best = 0; }
+
+  function emptyBoard(){ return Array.from({length:SIZE},()=>Array(SIZE).fill(0)); }
+  function saveBest(){ try{ localStorage.setItem('g2048-best', String(best)); }catch(e){} }
+  function color(v){ return COLORS[v] || (v>2048 ? '#3c3a32' : '#eee4da'); }
+
+  function addTile(){
+    const empty=[];
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(board[r][c]===0) empty.push([r,c]);
+    if(!empty.length) return;
+    const [r,c] = empty[Math.floor(Math.random()*empty.length)];
+    board[r][c] = Math.random()<0.9 ? 2 : 4;
+    newPos = r+','+c;
+  }
+
+  function render(){
+    tilesEl.innerHTML='';
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+      const v=board[r][c]; if(!v) continue;
+      const t=document.createElement('div');
+      t.className='tile';
+      if(newPos===r+','+c) t.classList.add('new');
+      if(mergedPos && mergedPos.has(r+','+c)) t.classList.add('merged');
+      t.style.setProperty('--r',r); t.style.setProperty('--c',c);
+      t.style.background=color(v);
+      t.style.color = v<=4 ? '#776e65' : '#f9f6f2';
+      if(v>=1024) t.style.fontSize='clamp(15px,5vw,28px)';
+      else if(v>=128) t.style.fontSize='clamp(18px,6vw,32px)';
+      t.textContent=v;
+      tilesEl.appendChild(t);
+    }
+    newPos=null; mergedPos=null;
+    $('score').textContent=score;
+    $('best').textContent=best;
+  }
+
+  function slide(line){
+    const a=line.filter(v=>v!==0), out=[], mi=[]; let g=0;
+    for(let i=0;i<a.length;i++){
+      if(a[i]===a[i+1]){ const v=a[i]*2; out.push(v); g+=v; mi.push(out.length-1); i++; }
+      else out.push(a[i]);
+    }
+    while(out.length<SIZE) out.push(0);
+    return {line:out, gained:g, mi:mi};
+  }
+
+  function get(b,dir,i,j){
+    if(dir==='left')  return b[i][j];
+    if(dir==='right') return b[i][SIZE-1-j];
+    if(dir==='up')    return b[j][i];
+    return b[SIZE-1-j][i];
+  }
+  function set(b,dir,i,j,v){
+    if(dir==='left')       b[i][j]=v;
+    else if(dir==='right') b[i][SIZE-1-j]=v;
+    else if(dir==='up')    b[j][i]=v;
+    else                   b[SIZE-1-j][i]=v;
+  }
+  function posOf(dir,i,k){
+    if(dir==='left')  return [i,k];
+    if(dir==='right') return [i,SIZE-1-k];
+    if(dir==='up')    return [k,i];
+    return [SIZE-1-k,i];
+  }
+
+  function move(dir){
+    if(over || (won && !keepPlaying)) return;
+    let changed=false, gained=0;
+    const mset=new Set();
+    for(let i=0;i<SIZE;i++){
+      const line=[];
+      for(let j=0;j<SIZE;j++) line.push(get(board,dir,i,j));
+      const res=slide(line);
+      if(res.line.join(',')!==line.join(',')) changed=true;
+      gained+=res.gained;
+      res.mi.forEach(k=>{ const [r,c]=posOf(dir,i,k); mset.add(r+','+c); });
+      for(let j=0;j<SIZE;j++) set(board,dir,i,j,res.line[j]);
+    }
+    if(!changed) return;
+    score+=gained;
+    if(score>best){ best=score; saveBest(); }
+    addTile();
+    mergedPos=mset;
+    render();
+    checkState();
+  }
+
+  function canMove(){
+    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
+      const v=board[r][c];
+      if(v===0) return true;
+      if(c<SIZE-1 && v===board[r][c+1]) return true;
+      if(r<SIZE-1 && v===board[r+1][c]) return true;
+    }
+    return false;
+  }
+  function has2048(){ return board.some(row=>row.some(v=>v>=WIN_SCORE)); }
+
+  // 胜利判定：得分达标 或 合出 2048 方块，两者任一即赢；整局只弹一次，不重复打扰
+  function checkState(){
+    if(!won && !over){
+      let msg=null;
+      if(has2048()) msg='合出 2048 方块！🎉';
+      else if(score>=WIN_SCORE) msg='得分突破 2048！🎉';
+      if(msg){
+        won=true; keepPlaying=false;
+        const stuck=!canMove();
+        if(stuck){ over=true; msg+='\n棋盘也满了，只能重开'; }
+        showOverlay(msg, !stuck);
+        return;
+      }
+    }
+    if(!canMove()){ over=true; showOverlay('没地方挪了 😵', false); }
+  }
+  function showOverlay(text, canContinue){
+    $('ov-text').textContent=text;
+    $('ov-text').style.whiteSpace='pre-line';
+    $('ov-continue').style.display = canContinue ? '' : 'none';
+    overlay.classList.add('show');
+  }
+  function hideOverlay(){ overlay.classList.remove('show'); }
+
+  function newGame(){
+    board=emptyBoard(); score=0; over=false; won=false; keepPlaying=false;
+    mergedPos=null; newPos=null;
+    hideOverlay();
+    addTile(); addTile(); render();
+  }
+
+  const KEY={
+    ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',
+    a:'left',d:'right',w:'up',s:'down',A:'left',D:'right',W:'up',S:'down'
+  };
+  document.addEventListener('keydown',e=>{
+    const dir=KEY[e.key];
+    if(dir){ e.preventDefault(); move(dir); }
+  });
+  let sx=0,sy=0;
+  boardEl.addEventListener('touchstart',e=>{
+    const t=e.changedTouches[0]; sx=t.clientX; sy=t.clientY;
+  },{passive:true});
+  boardEl.addEventListener('touchend',e=>{
+    const t=e.changedTouches[0], dx=t.clientX-sx, dy=t.clientY-sy;
+    if(Math.max(Math.abs(dx),Math.abs(dy))<24) return;
+    move(Math.abs(dx)>Math.abs(dy) ? (dx>0?'right':'left') : (dy>0?'down':'up'));
+  },{passive:true});
+
+  $('new-game').addEventListener('click',newGame);
+  $('ov-restart').addEventListener('click',newGame);
+  $('ov-continue').addEventListener('click',()=>{ keepPlaying=true; hideOverlay(); });
+
+  newGame();
+})();
+</script>
+</body>
+</html>
