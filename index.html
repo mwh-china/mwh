@@ -1,259 +1,1152 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>2048 · 小游戏</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>硬核推箱子 · AI 无尽关卡</title>
 <style>
   :root{
-    --bg:#faf8ef; --grid:#bbada0; --cell:rgba(238,228,218,.35);
-    --dark:#776e65; --light:#f9f6f2; --btn:#8f7a66;
+    --bg:#0b1020; --panel:#121933; --panel2:#0f1530;
+    --line:#2a3358; --txt:#e8ecff; --dim:#8a93b8;
+    --cyan:#3aa0ff; --mint:#5cf2b3; --gold:#ffce6b; --bad:#ff5d6c; --on:#4ade80;
   }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
   body{
-    margin:0;background:var(--bg);color:var(--dark);
-    font-family:"Clear Sans","Helvetica Neue",Arial,"WenQuanYi Micro Hei",sans-serif;
-    display:flex;justify-content:center;padding:18px 12px 40px;
+    margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:radial-gradient(1200px 800px at 50% -10%,#1a2244 0%,var(--bg) 55%);
+    color:var(--txt);overflow:hidden;user-select:none;display:flex;flex-direction:column;
   }
-  .wrap{width:100%;max-width:460px}
-  header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px}
-  h1{font-size:52px;margin:0;line-height:1;letter-spacing:-2px}
-  .scores{display:flex;gap:8px}
-  .score-box{background:var(--grid);color:var(--light);border-radius:6px;padding:6px 14px;text-align:center;min-width:74px}
-  .score-box span{display:block;font-size:11px;opacity:.75;letter-spacing:1px}
-  .score-box strong{font-size:20px;display:block;margin-top:2px}
-  .bar{display:flex;justify-content:space-between;align-items:center;margin:14px 0 12px;gap:10px;flex-wrap:wrap}
-  .bar p{margin:0;font-size:13px;line-height:1.6;flex:1;min-width:190px}
-  button{font:inherit;cursor:pointer;border:0;border-radius:6px;background:var(--btn);color:var(--light);font-weight:700;padding:10px 16px}
-  button:active{transform:translateY(1px)}
-  .board{position:relative;background:var(--grid);border-radius:8px;padding:10px;width:100%;aspect-ratio:1/1;touch-action:none}
-  .cells{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(4,1fr);gap:10px;height:100%}
-  .cell{background:var(--cell);border-radius:5px}
-  .tiles{position:absolute;inset:10px;pointer-events:none}
-  .tile{
-    position:absolute;
-    width:calc((100% - 30px)/4);height:calc((100% - 30px)/4);
-    left:calc(var(--c) * (100% + 10px) / 4);
-    top:calc(var(--r) * (100% + 10px) / 4);
-    border-radius:5px;display:flex;align-items:center;justify-content:center;
-    font-weight:800;font-size:clamp(20px,7vw,38px);
+  header{display:flex;align-items:center;gap:8px;padding:10px 12px 6px;flex-wrap:wrap;}
+  .title{font-weight:800;font-size:17px;letter-spacing:.5px;
+    background:linear-gradient(90deg,#ffce6b,#5cf2b3);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .badge{font-size:11px;color:var(--mint);border:1px solid rgba(92,242,179,.35);border-radius:20px;padding:3px 9px;}
+  .spacer{flex:1;}
+  select,button{
+    font-family:inherit;font-size:13px;color:var(--txt);background:var(--panel);
+    border:1px solid var(--line);border-radius:10px;padding:7px 11px;cursor:pointer;transition:.15s;
   }
-  .tile.new{animation:appear .18s ease}
-  .tile.merged{animation:bump .2s ease;z-index:2}
-  @keyframes appear{from{transform:scale(.2);opacity:0}to{transform:scale(1);opacity:1}}
-  @keyframes bump{0%{transform:scale(1)}50%{transform:scale(1.18)}100%{transform:scale(1)}}
-  .overlay{
-    position:absolute;inset:0;background:rgba(238,228,218,.82);border-radius:8px;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;
-    font-size:26px;font-weight:800;text-align:center;padding:16px;line-height:1.4;
-    opacity:0;pointer-events:none;transition:opacity .25s;z-index:5;
+  button:hover,select:hover{border-color:var(--cyan);}
+  button:active{transform:scale(.95);}
+  button.primary{background:linear-gradient(135deg,#3aa0ff,#5cf2b3);color:#07122b;font-weight:800;border:none;}
+  .stats{display:flex;gap:8px;padding:4px 12px 8px;flex-wrap:wrap;font-size:12px;color:var(--dim);}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:5px 10px;min-width:60px;text-align:center;}
+  .stat b{display:block;color:var(--txt);font-size:15px;font-variant-numeric:tabular-nums;}
+  .stat.good b{color:var(--on);}
+  .warn{
+    display:none;flex:0 0 auto;align-items:center;gap:8px;
+    margin:0 12px 6px;padding:8px 10px;border-radius:10px;
+    background:linear-gradient(90deg,rgba(255,93,108,.18),rgba(255,93,108,.06));
+    border:1px solid rgba(255,93,108,.5);color:#ffb3bb;font-size:12px;line-height:1.4;
   }
-  .overlay.show{opacity:1;pointer-events:auto}
-  .ov-btns{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
-  .overlay button{font-size:15px}
-  footer{margin-top:14px;font-size:12px;line-height:1.7;color:#9b8b7e;text-align:center}
+  .warn.show{display:flex;}
+  .warn span{flex:1;}
+  .warn button{flex:0 0 auto;font-size:12px;padding:5px 9px;border-color:rgba(255,93,108,.6);
+    background:rgba(255,93,108,.14);color:#ffd7dc;font-weight:700;}
+  @keyframes deadPulse{0%,100%{opacity:1}50%{opacity:.45}}
+  #boardWrap{flex:1;display:flex;align-items:center;justify-content:center;padding:6px 10px 8px;min-height:0;}
+  canvas{display:block;max-width:100%;max-height:100%;border-radius:12px;background:#0a0f24;touch-action:none;
+    box-shadow:0 10px 40px rgba(0,0,0,.5),0 0 0 1px var(--line);}
+  .hint{flex:0 0 auto;text-align:center;font-size:11px;color:#5a6390;padding:3px 8px 6px;}
+  .hint kbd{background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:10px;}
+  /* 手机端方向键：桌面隐藏，触屏/窄屏显示 */
+  .dpadWrap{
+    display:none;flex:0 0 auto;align-items:center;justify-content:center;gap:14px;
+    padding:4px 10px 2px;touch-action:manipulation;
+  }
+  .dpad{display:grid;grid-template-columns:repeat(3,60px);grid-template-rows:repeat(3,52px);gap:6px;}
+  .dbtn{
+    display:flex;align-items:center;justify-content:center;font-size:24px;line-height:1;
+    border-radius:14px;border:1px solid rgba(90,120,200,.45);
+    background:linear-gradient(160deg,#1d2a55,#141c3c);color:var(--txt);
+    box-shadow:0 3px 0 rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.08);
+    padding:0;transition:transform .08s,filter .08s;touch-action:none;
+  }
+  .dbtn:active,.dbtn.pressed{transform:translateY(2px) scale(.95);filter:brightness(1.35);
+    box-shadow:0 1px 0 rgba(0,0,0,.35);}
+  .dbtn.up{grid-column:2;grid-row:1;}
+  .dbtn.left{grid-column:1;grid-row:2;}
+  .dbtn.right{grid-column:3;grid-row:2;}
+  .dbtn.down{grid-column:2;grid-row:3;}
+  .dpadMid{grid-column:2;grid-row:2;display:flex;align-items:center;justify-content:center;
+    color:#4a5687;font-size:10px;letter-spacing:1px;}
+  .dside{display:flex;flex-direction:column;gap:7px;}
+  .dside button{font-size:12px;padding:9px 10px;border-radius:12px;min-width:66px;}
+  @media (max-width:760px),(pointer:coarse){
+    .dpadWrap{display:flex;}
+    header button.act{display:none;}
+  }
+  .overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+    background:rgba(5,8,20,.78);backdrop-filter:blur(4px);z-index:20;padding:20px;}
+  .overlay.show{display:flex;}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:22px;
+    max-width:350px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6);}
+  .card h2{margin:0 0 6px;font-size:20px;}
+  .card p{margin:5px 0;color:var(--dim);font-size:13px;line-height:1.6;}
+  .card .big{font-size:36px;font-weight:900;
+    background:linear-gradient(135deg,#ffce6b,#ff5d6c);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .card .row{display:flex;gap:8px;margin-top:16px;}
+  .card .row>*{flex:1;}
+  .verified{color:var(--mint);font-size:12px;font-weight:700;}
+  @media(max-width:430px){
+    .title{font-size:15px;} select,button{font-size:12px;padding:6px 8px;}
+    .stat{padding:4px 7px;min-width:52px;} .stat b{font-size:13px;}
+    .hint{font-size:10px;}
+    .dpad{grid-template-columns:repeat(3,56px);grid-template-rows:repeat(3,48px);gap:5px;}
+    .dside button{font-size:11px;padding:8px 7px;min-width:58px;}
+    .dpadWrap{gap:8px;padding:3px 6px 2px;}
+  }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>2048</h1>
-    <div class="scores">
-      <div class="score-box"><span>得分</span><strong id="score">0</strong></div>
-      <div class="score-box"><span>最高</span><strong id="best">0</strong></div>
-    </div>
-  </header>
+<header>
+  <span class="title">📦 硬核推箱子</span>
+  <span class="badge" id="lvlBadge">第 1 关</span>
+  <span class="spacer"></span>
+  <select id="diff" title="难度">
+    <option value="1">入门</option>
+    <option value="2">普通</option>
+    <option value="3">困难</option>
+    <option value="4">噩梦</option>
+    <option value="5">地狱</option>
+    <option value="6" selected>深渊 ☠</option>
+  </select>
+  <button id="undoBtn" class="act" title="撤销 (Z)">↩ 撤销</button>
+  <button id="resetBtn" class="act" title="重开 (R)">⟳ 重开</button>
+  <button id="hintBtn" class="act" title="提示">💡 提示</button>
+  <button id="demoBtn" class="act" title="演示本关解法">🎬 演示</button>
+  <button id="nextBtn" class="primary act">⤳ 换一关</button>
+</header>
+<div class="stats">
+  <div class="stat"><b id="sMoves">0</b>移动</div>
+  <div class="stat"><b id="sPushes">0</b>推箱</div>
+  <div class="stat"><b id="sRef">—</b>解法推数</div>
+  <div class="stat" id="sBoxStat"><b>0/0</b>就位</div>
+  <div class="stat"><b id="sTime">0:00</b>用时</div>
+  <div class="stat good"><b id="sStreak">0</b>连胜</div>
+</div>
+<div class="warn" id="deadWarn">
+  <span id="deadWarnTxt">⚠️ 这一步把箱子推死了，当前局面已无解</span>
+  <button id="deadUndo">↩ 回到安全</button>
+</div>
+<div id="boardWrap"><canvas id="cv"></canvas></div>
 
-  <div class="bar">
-    <p>方向键 / WASD / 手指滑动，把相同数字撞在一起。<br><b>得分到 2048</b> 或 <b>合出 2048 方块</b> 都算赢 🎉</p>
-    <button id="new-game">新游戏</button>
+<div class="dpadWrap">
+  <div class="dside">
+    <button id="dpUndo">↩ 撤销</button>
+    <button id="dpReset">⟳ 重开</button>
   </div>
+  <div class="dpad" id="dpad">
+    <button class="dbtn up"    id="dpUp"    aria-label="向上">▲</button>
+    <button class="dbtn left"  id="dpLeft"  aria-label="向左">◀</button>
+    <div class="dpadMid">长按<br>连走</div>
+    <button class="dbtn right" id="dpRight" aria-label="向右">▶</button>
+    <button class="dbtn down"  id="dpDown"  aria-label="向下">▼</button>
+  </div>
+  <div class="dside">
+    <button id="dpHint">💡 提示</button>
+    <button id="dpDemo">🎬 演示</button>
+    <button id="dpNext" class="primary">⤳ 换关</button>
+  </div>
+</div>
 
-  <div class="board" id="board">
-    <div class="cells" id="cells"></div>
-    <div class="tiles" id="tiles"></div>
-    <div class="overlay" id="overlay">
-      <div id="ov-text">游戏结束</div>
-      <div class="ov-btns">
-        <button id="ov-continue">继续挑战</button>
-        <button id="ov-restart">再来一局</button>
-      </div>
+<div class="hint">
+  <kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd>/<kbd>WASD</kbd> 或点方向键（可长按）· <kbd>Z</kbd>撤销 <kbd>R</kbd>重开 <kbd>V</kbd>演示解法 <kbd>N</kbd>换关 · 推死箱子会红框警告
+</div>
+
+<div class="overlay" id="winOverlay">
+  <div class="card">
+    <div class="big">🎉 通关！</div>
+    <h2 id="winTitle">你解开了这关</h2>
+    <p id="winStats">移动 0 · 推箱 0</p>
+    <p id="winOpt"></p>
+    <p id="winStreak" style="color:var(--gold)"></p>
+    <div class="row">
+      <button id="winReplay">再玩一次</button>
+      <button id="winNext" class="primary">换一关 ⤳</button>
     </div>
   </div>
+</div>
 
-  <footer>纯前端单文件 · 无需联网 · 最高分存在本机浏览器</footer>
+<div class="overlay" id="genOverlay">
+  <div class="card">
+    <div class="big" style="font-size:28px;background:linear-gradient(135deg,#5cf2b3,#3aa0ff);-webkit-background-clip:text;background-clip:text;color:transparent;">🧠 AI 生成关卡中…</div>
+    <p>逆向拉箱打乱 → 构造显式解 → 逐步模拟复核 → 出厂再验一次</p>
+    <p class="verified">箱子与目标格、彼此之间都不相邻起步 · 每关都带真实可走通的解法</p>
+  </div>
 </div>
 
 <script>
-(function(){
-  const SIZE = 4;
-  const WIN_SCORE = 2048;
-  const COLORS = {
-    2:'#eee4da', 4:'#ede0c8', 8:'#f2b179', 16:'#f59563',
-    32:'#f67c5f', 64:'#f65e3b', 128:'#edcf72', 256:'#edcc61',
-    512:'#edc850', 1024:'#edc53f', 2048:'#edc22e'
-  };
-  const $ = id => document.getElementById(id);
-  const cellsEl = $('cells'), tilesEl = $('tiles'), boardEl = $('board'), overlay = $('overlay');
-  for (let i=0;i<16;i++){
-    const d=document.createElement('div'); d.className='cell'; cellsEl.appendChild(d);
+"use strict";
+/* ============================================================
+   硬核推箱子 · 保证可解的 AI 关卡生成
+   ------------------------------------------------------------
+   算法：从"箱子全部归位"的已解状态出发，反向执行
+     · 拉箱(pull)：箱子从 玩家+d 拉到 玩家，玩家退到 玩家-d
+     · 走位(walk)：玩家在可达区内自由移动（不碰箱子）
+   两类操作在正向都完全可逆，因此把操作序列逆序重放，
+   就是一条从初始局面通向通关的显式方向键序列。
+   生成后逐步模拟这条序列复核，100% 保证关卡能通关。
+   ============================================================ */
+
+const WALL=1, FLOOR=0;
+const DIRS=[[0,-1],[0,1],[-1,0],[1,0]];  // 上 下 左 右
+const REV=[1,0,3,2];                       // 反向
+const DIFF={
+  1:{w:8, h:7,  boxes:2,  wall:0.22, pulls:16,  minPushes:8,   target:80},
+  2:{w:10,h:8,  boxes:3,  wall:0.26, pulls:34,  minPushes:18,  target:220},
+  3:{w:13,h:10, boxes:5,  wall:0.30, pulls:70,  minPushes:40,  target:480},
+  4:{w:17,h:12, boxes:8,  wall:0.34, pulls:140, minPushes:85,  target:1000},
+  5:{w:21,h:15, boxes:10, wall:0.37, pulls:260, minPushes:160, target:2200},
+  6:{w:25,h:18, boxes:12, wall:0.39, pulls:420, minPushes:280, target:4000},
+};
+
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+let level={}, state={}, history=[];
+let cell=26, streak=0, startedAt=0, timerId=0, hintBox=null, hintTimer=0, genToken=0;
+let bestSeen={};
+let deadWarn=[], demoRunning=false, demoMode=false, demoToken=0;
+
+/* ---------- 工具 ---------- */
+function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);
+  t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;};}
+function shuffle(a,rng){for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));
+  const tmp=a[i];a[i]=a[j];a[j]=tmp;}return a;}
+function key(x,y){return y*100+x;}
+function dist(a,b){return Math.abs(a[0]-b[0])+Math.abs(a[1]-b[1]);}
+function cloneBoxes(b){return b.map(p=>[p[0],p[1]]);}
+
+/* ---------- 房间：连通挖墙 ---------- */
+function floorCells(g,W,H){const f=[];for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++)
+  if(g[y][x]===FLOOR)f.push([x,y]);return f;}
+function isConnected(g,W,H){
+  const floors=floorCells(g,W,H);if(!floors.length)return false;
+  const set=new Set(floors.map(p=>key(p[0],p[1])));
+  const seen=new Set(), stack=[floors[0]];
+  while(stack.length){
+    const p=stack.pop(), k=key(p[0],p[1]);
+    if(seen.has(k))continue;seen.add(k);
+    for(const d of DIRS){const nx=p[0]+d[0],ny=p[1]+d[1],nk=key(nx,ny);
+      if(set.has(nk)&&!seen.has(nk))stack.push([nx,ny]);}
   }
-
-  let board, score, best, over, won, keepPlaying, newPos, mergedPos;
-  try { best = parseInt(localStorage.getItem('g2048-best')||'0',10)||0; }
-  catch(e){ best = 0; }
-
-  function emptyBoard(){ return Array.from({length:SIZE},()=>Array(SIZE).fill(0)); }
-  function saveBest(){ try{ localStorage.setItem('g2048-best', String(best)); }catch(e){} }
-  function color(v){ return COLORS[v] || (v>2048 ? '#3c3a32' : '#eee4da'); }
-
-  function addTile(){
-    const empty=[];
-    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++) if(board[r][c]===0) empty.push([r,c]);
-    if(!empty.length) return;
-    const [r,c] = empty[Math.floor(Math.random()*empty.length)];
-    board[r][c] = Math.random()<0.9 ? 2 : 4;
-    newPos = r+','+c;
+  return seen.size===set.size;
+}
+function reachable(g,W,H,px,py,boxes){
+  const occ=new Set(boxes.map(p=>key(p[0],p[1])));
+  const seen=new Set([key(px,py)]), stack=[[px,py]];
+  while(stack.length){
+    const p=stack.pop();
+    for(const d of DIRS){const nx=p[0]+d[0],ny=p[1]+d[1];
+      if(nx<=0||ny<=0||nx>=W-1||ny>=H-1)continue;
+      if(g[ny][nx]!==FLOOR)continue;
+      const k=key(nx,ny);
+      if(occ.has(k)||seen.has(k))continue;
+      seen.add(k);stack.push([nx,ny]);}
   }
-
-  function render(){
-    tilesEl.innerHTML='';
-    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
-      const v=board[r][c]; if(!v) continue;
-      const t=document.createElement('div');
-      t.className='tile';
-      if(newPos===r+','+c) t.classList.add('new');
-      if(mergedPos && mergedPos.has(r+','+c)) t.classList.add('merged');
-      t.style.setProperty('--r',r); t.style.setProperty('--c',c);
-      t.style.background=color(v);
-      t.style.color = v<=4 ? '#776e65' : '#f9f6f2';
-      if(v>=1024) t.style.fontSize='clamp(15px,5vw,28px)';
-      else if(v>=128) t.style.fontSize='clamp(18px,6vw,32px)';
-      t.textContent=v;
-      tilesEl.appendChild(t);
+  return seen;
+}
+function buildRoom(W,H,rng){
+  const g=[];
+  for(let y=0;y<H;y++){g[y]=[];for(let x=0;x<W;x++)g[y][x]=FLOOR;}
+  for(let x=0;x<W;x++){g[0][x]=WALL;g[H-1][x]=WALL;}
+  for(let y=0;y<H;y++){g[y][0]=WALL;g[y][W-1]=WALL;}
+  return g;
+}
+function applyWallRatio(g,W,H,rng,target){
+  const cand=[];
+  for(let y=2;y<H-2;y++)for(let x=2;x<W-2;x++)cand.push([x,y]);
+  shuffle(cand,rng);
+  let walls=0; const want=Math.floor((W-2)*(H-2)*target);
+  for(const c of cand){
+    if(walls>=want)break;
+    g[c[1]][c[0]]=WALL;
+    if(isConnected(g,W,H))walls++;else g[c[1]][c[0]]=FLOOR;
+  }
+  // 内圈第 1 行/列也少量加点墙，增加结构层次
+  shuffle(cand,rng);
+  for(const c of cand){if(rng()>0.10)continue;
+    g[c[1]][c[0]]=WALL;if(!isConnected(g,W,H))g[c[1]][c[0]]=FLOOR;}
+  return g;
+}
+/* 墙角死锁（关卡生成 / 提示搜索的剪枝用，较宽松） */
+function boxDeadlocked(g,W,H,bx,by,goals){
+  if(goals.some(p=>p[0]===bx&&p[1]===by))return false;
+  const l=g[by][bx-1]===WALL, r=g[by][bx+1]===WALL,
+        u=g[by-1][bx]===WALL, d=g[by+1][bx]===WALL;
+  return (l||r)&&(u||d);
+}
+/* 完整死锁判定（运行时警告用）。
+   注意方向：左右贴墙的箱子只能沿【列 bx】上下移动，
+   上下贴墙的箱子只能沿【行 by】左右移动，别判反。 */
+function isDeadBox(g,W,H,boxes,bi,goals){
+  const bx=boxes[bi][0], by=boxes[bi][1];
+  if(goals.some(p=>p[0]===bx&&p[1]===by))return false;
+  if(boxDeadlocked(g,W,H,bx,by,goals))return true;
+  // 只有紧贴【外墙】才是永久约束：内部单格墙旁边绕一步就能换方向推，不能算死锁
+  // bx===1 表示左边是外圈墙，玩家永远站不到 bx-1，箱子无法水平移动
+  if((bx===1||bx===W-2)&&!goals.some(p=>p[0]===bx))return true;
+  if((by===1||by===H-2)&&!goals.some(p=>p[1]===by))return true;
+  // 2×2 方块死锁：四格被墙/箱子塞满且其中有未归位的箱子
+  for(let oy=-1;oy<=0;oy++)for(let ox=-1;ox<=0;ox++){
+    const x0=bx+ox, y0=by+oy;
+    let filled=true, off=false;
+    for(let yy=y0;yy<=y0+1;yy++)for(let xx=x0;xx<=x0+1;xx++){
+      if(xx<0||yy<0||xx>=W||yy>=H){filled=false;continue;}
+      if(g[yy][xx]===WALL)continue;
+      let hasBox=false;
+      for(let k=0;k<boxes.length;k++)if(boxes[k][0]===xx&&boxes[k][1]===yy){hasBox=true;break;}
+      if(!hasBox){filled=false;continue;}
+      if(!goals.some(p=>p[0]===xx&&p[1]===yy))off=true;
     }
-    newPos=null; mergedPos=null;
-    $('score').textContent=score;
-    $('best').textContent=best;
+    if(filled&&off)return true;
   }
-
-  function slide(line){
-    const a=line.filter(v=>v!==0), out=[], mi=[]; let g=0;
-    for(let i=0;i<a.length;i++){
-      if(a[i]===a[i+1]){ const v=a[i]*2; out.push(v); g+=v; mi.push(out.length-1); i++; }
-      else out.push(a[i]);
+  return false;
+}
+/* 静态死锁格：从每个目标反向推演，算出"箱子放在这里永远到不了任何目标"的格子。
+   能覆盖墙角、贴边无目标，以及"半凹"——凹口太窄玩家站不进去、
+   或者推出来后没空间转向，箱子就再也够不到目标了。
+   只考虑墙、不考虑其它箱子，属于保守判定：只有真的必死才标记，绝不误报。*/
+function computeDeadSquares(g,W,H,goals,extraBlocked){
+  // 从目标反向推演：箱子放在哪些格子还有可能一路推到某个目标。
+  // extraBlocked 是"已冻结、永远不动的箱子"占据的格子，等价于墙。
+  const wall=(x,y)=>x<=0||y<=0||x>=W-1||y>=H-1||g[y][x]===WALL
+    ||(extraBlocked&&extraBlocked.has(key(x,y)));
+  const good=new Set(), q=[];
+  for(const p of goals){
+    const k=key(p[0],p[1]);
+    if(!good.has(k)){good.add(k);q.push([p[0],p[1]]);}
+  }
+  let head=0;
+  while(head<q.length){
+    const c=q[head++];
+    for(let d=0;d<4;d++){
+      const dx=DIRS[d][0],dy=DIRS[d][1];
+      const bx=c[0]-dx, by=c[1]-dy, px=c[0]-2*dx, py=c[1]-2*dy;
+      if(wall(px,py))continue;               // 玩家得站得进来才推得动
+      if(wall(bx,by))continue;               // 箱子原位得是空地
+      const k=key(bx,by);
+      if(good.has(k))continue;
+      good.add(k);q.push([bx,by]);
     }
-    while(out.length<SIZE) out.push(0);
-    return {line:out, gained:g, mi:mi};
   }
-
-  function get(b,dir,i,j){
-    if(dir==='left')  return b[i][j];
-    if(dir==='right') return b[i][SIZE-1-j];
-    if(dir==='up')    return b[j][i];
-    return b[SIZE-1-j][i];
+  const dead=new Set();
+  for(let y=1;y<H-1;y++)for(let x=1;x<W-1;x++)
+    if(g[y][x]===FLOOR&&!good.has(key(x,y)))dead.add(key(x,y));
+  return dead;
+}
+/* 冻结箱迭代：把已冻结的箱子当墙，重新算一遍死锁格，
+   新落进死锁格的箱子也冻结，直到收敛。
+   这样"墙 + 别的箱子围出来的半凹"也能识别，且不会把
+   "往下挪一格就能绕出来"的箱子误判成死局。*/
+function computeFrozen(g,W,H,boxes,goals,deadSq){
+  const frozen=new Set(), gs=new Set(goals.map(p=>key(p[0],p[1])));
+  for(let i=0;i<boxes.length;i++){
+    if(gs.has(key(boxes[i][0],boxes[i][1])))continue;
+    if(deadSq.has(key(boxes[i][0],boxes[i][1])))frozen.add(i);
   }
-  function set(b,dir,i,j,v){
-    if(dir==='left')       b[i][j]=v;
-    else if(dir==='right') b[i][SIZE-1-j]=v;
-    else if(dir==='up')    b[j][i]=v;
-    else                   b[SIZE-1-j][i]=v;
-  }
-  function posOf(dir,i,k){
-    if(dir==='left')  return [i,k];
-    if(dir==='right') return [i,SIZE-1-k];
-    if(dir==='up')    return [k,i];
-    return [SIZE-1-k,i];
-  }
-
-  function move(dir){
-    if(over || (won && !keepPlaying)) return;
-    let changed=false, gained=0;
-    const mset=new Set();
-    for(let i=0;i<SIZE;i++){
-      const line=[];
-      for(let j=0;j<SIZE;j++) line.push(get(board,dir,i,j));
-      const res=slide(line);
-      if(res.line.join(',')!==line.join(',')) changed=true;
-      gained+=res.gained;
-      res.mi.forEach(k=>{ const [r,c]=posOf(dir,i,k); mset.add(r+','+c); });
-      for(let j=0;j<SIZE;j++) set(board,dir,i,j,res.line[j]);
+  let ds=deadSq, rounds=0;
+  while(rounds++<=boxes.length){
+    const blocked=new Set();
+    for(const j of frozen)blocked.add(key(boxes[j][0],boxes[j][1]));
+    ds=blocked.size?computeDeadSquares(g,W,H,goals,blocked):deadSq;
+    let added=0;
+    for(let i=0;i<boxes.length;i++){
+      if(frozen.has(i))continue;
+      const b=boxes[i];
+      if(gs.has(key(b[0],b[1])))continue;
+      if(ds.has(key(b[0],b[1]))){frozen.add(i);added++;}
     }
-    if(!changed) return;
-    score+=gained;
-    if(score>best){ best=score; saveBest(); }
-    addTile();
-    mergedPos=mset;
-    render();
-    checkState();
+    if(!added)break;
   }
-
-  function canMove(){
-    for(let r=0;r<SIZE;r++) for(let c=0;c<SIZE;c++){
-      const v=board[r][c];
-      if(v===0) return true;
-      if(c<SIZE-1 && v===board[r][c+1]) return true;
-      if(r<SIZE-1 && v===board[r+1][c]) return true;
+  // 2×2 方块死锁：四格被墙/箱子塞满，且其中有未归位的箱子
+  for(let i=0;i<boxes.length;i++){
+    if(frozen.has(i))continue;
+    const bx=boxes[i][0],by=boxes[i][1];
+    for(let oy=-1;oy<=0;oy++)for(let ox=-1;ox<=0;ox++){
+      const x0=bx+ox,y0=by+oy;let filled=true,off=false;
+      for(let yy=y0;yy<=y0+1;yy++)for(let xx=x0;xx<=x0+1;xx++){
+        if(xx<0||yy<0||xx>=W||yy>=H){filled=false;continue;}
+        if(g[yy][xx]===WALL)continue;
+        let hb=false;
+        for(let k=0;k<boxes.length;k++)if(boxes[k][0]===xx&&boxes[k][1]===yy){hb=true;break;}
+        if(!hb){filled=false;continue;}
+        if(!gs.has(key(xx,yy)))off=true;
+      }
+      if(filled&&off){frozen.add(i);break;}
     }
-    return false;
   }
-  function has2048(){ return board.some(row=>row.some(v=>v>=WIN_SCORE)); }
+  return frozen;
+}
+function deadBoxes(boxes,goals){          // 当前局面里所有被推死的箱子下标
+  if(!level.W||!goals||!boxes)return [];
+  if(!level.deadSquares)
+    level.deadSquares=computeDeadSquares(level.grid,level.W,level.H,goals);
+  return [...computeFrozen(level.grid,level.W,level.H,boxes,goals,level.deadSquares)];
+}
+/* 开局观感过滤：箱子三面被墙/箱子围住，即使能推出来也别生成，
+   免得看起来像"卡在半凹里" */
+function looksStuck(g,W,H,boxes){
+  for(const b of boxes){
+    let walls=0;
+    for(const d of DIRS)if(g[b[1]+d[1]][b[0]+d[0]]===WALL)walls++;
+    if(walls>=3)return true;              // 三面墙的地形半凹
+  }
+  return false;
+}
+/* 在可达区内 BFS 找一条方向路径 */
+function pathTo(reach,from,to){
+  if(from[0]===to[0]&&from[1]===to[1])return [];
+  const seen=new Set([key(from[0],from[1])]);
+  const q=[[from[0],from[1],[]]];
+  let head=0;
+  while(head<q.length){
+    const cur=q[head++];
+    for(let d=0;d<4;d++){
+      const nx=cur[0]+DIRS[d][0], ny=cur[1]+DIRS[d][1], k=key(nx,ny);
+      if(!reach.has(k)||seen.has(k))continue;
+      const path=cur[2].concat(d);
+      if(nx===to[0]&&ny===to[1])return path;
+      seen.add(k);q.push([nx,ny,path]);
+    }
+  }
+  return null;
+}
 
-  // 胜利判定：得分达标 或 合出 2048 方块，两者任一即赢；整局只弹一次，不重复打扰
-  function checkState(){
-    if(!won && !over){
-      let msg=null;
-      if(has2048()) msg='合出 2048 方块！🎉';
-      else if(score>=WIN_SCORE) msg='得分突破 2048！🎉';
-      if(msg){
-        won=true; keepPlaying=false;
-        const stuck=!canMove();
-        if(stuck){ over=true; msg+='\n棋盘也满了，只能重开'; }
-        showOverlay(msg, !stuck);
-        return;
+/* ---------- 逐步模拟显式解，复核可通关 ---------- */
+function simulate(lvl,dirs){
+  const g=lvl.grid,W=lvl.W,H=lvl.H;
+  let player=[lvl.player[0],lvl.player[1]];
+  let boxes=cloneBoxes(lvl.boxes);
+  const gs=new Set(lvl.goals.map(p=>p[0]+','+p[1]));
+  let pushes=0, lastBox=-1, boxChanges=0, counterPushes=0;
+  const nearest=b=>{let m=1e9;for(const q of lvl.goals)m=Math.min(m,dist(b,q));return m;};
+  for(const d of dirs){
+    const dx=DIRS[d][0],dy=DIRS[d][1];
+    const nx=player[0]+dx, ny=player[1]+dy;
+    if(nx<=0||ny<=0||nx>=W-1||ny>=H-1)return null;
+    if(g[ny][nx]!==FLOOR)return null;
+    let bi=-1;
+    for(let i=0;i<boxes.length;i++)if(boxes[i][0]===nx&&boxes[i][1]===ny){bi=i;break;}
+    if(bi>=0){
+      const bx2=nx+dx, by2=ny+dy;
+      if(bx2<=0||by2<=0||bx2>=W-1||by2>=H-1)return null;
+      if(g[by2][bx2]!==FLOOR)return null;
+      if(boxes.some(b=>b[0]===bx2&&b[1]===by2))return null;
+      const before=nearest(boxes[bi]);
+      boxes[bi]=[bx2,by2];
+      if(nearest(boxes[bi])>before)counterPushes++;
+      pushes++;
+      if(lastBox>=0&&lastBox!==bi)boxChanges++;
+      lastBox=bi;
+    }
+    player=[nx,ny];
+  }
+  const ok=boxes.every(b=>gs.has(b[0]+','+b[1]));
+  if(!ok)return null;
+  return {pushes,boxChanges,counterPushes};
+}
+
+/* ---------- 生成一个候选关卡（带显式解） ---------- */
+function generateRaw(diff){
+  const cfg=DIFF[diff];
+  const W=cfg.w+(Math.random()<0.5?0:2), H=cfg.h+(Math.random()<0.5?0:2);
+  const rng=mulberry32((Date.now()^Math.floor(Math.random()*1e9))>>>0);
+  let g=buildRoom(W,H,rng);
+  g=applyWallRatio(g,W,H,rng,cfg.wall);
+  const floors=floorCells(g,W,H);
+  if(floors.length<8||!isConnected(g,W,H))return null;
+
+  // 目标点尽量分散，避免箱子初始就压在"另一个目标格"上
+  let goals=null, fallback=null;
+  for(let gi=0;gi<60;gi++){
+    shuffle(floors,rng);
+    const cand=floors.slice(0,cfg.boxes);
+    let minD=99;
+    for(let i=0;i<cand.length;i++)for(let j=i+1;j<cand.length;j++)
+      minD=Math.min(minD,dist(cand[i],cand[j]));
+    if(!fallback&&minD>=2)fallback=cand.map(p=>[p[0],p[1]]);
+    if(minD>=3){goals=cand.map(p=>[p[0],p[1]]);break;}
+  }
+  if(!goals)goals=fallback;
+  if(!goals)return null;
+
+  let boxes=cloneBoxes(goals);                 // 已解状态
+  const free=floors.filter(c=>!boxes.some(b=>b[0]===c[0]&&b[1]===c[1]));
+  if(!free.length)return null;
+  // 选可达区域最大的起点
+  let player=null, bestSize=-1;
+  for(let i=0;i<Math.min(10,free.length);i++){
+    const c=free[Math.floor(rng()*free.length)];
+    const r=reachable(g,W,H,c[0],c[1],boxes);
+    if(r.size>bestSize){bestSize=r.size;player=[c[0],c[1]];}
+  }
+
+  // 深度逆向打乱：每轮枚举全部合法拉法，选一个执行；
+  // 一旦走进"没箱子可拉"的死局，就回溯若干步换一条路继续，
+  // 这样能把拉箱链拉到几百步，而不是早早停住。
+  const goalDist=(x,y)=>{let m=1e9;for(const q of goals)m=Math.min(m,dist([x,y],q));return m;};
+  const goalSet=new Set(goals.map(p=>key(p[0],p[1])));
+  const onGoal=(x,y)=>goalSet.has(key(x,y));
+  const steps=[];
+  const hist=[];
+  const pullCnt=boxes.map(()=>0);          // 每个箱子被拉过几次
+  let lastBox=-1, pullCount=0, iter=0, backtracks=0;
+  const maxIter=cfg.pulls*2+80;
+  const maxBack=Math.max(12,Math.floor(cfg.pulls*0.35));
+  while(pullCount<cfg.pulls && iter++<maxIter){
+    const reach=reachable(g,W,H,player[0],player[1],boxes);
+    const cands=[];
+    for(let bi=0;bi<boxes.length;bi++){
+      const b=boxes[bi];
+      for(let d=0;d<4;d++){
+        const sx=b[0]-DIRS[d][0], sy=b[1]-DIRS[d][1];         // 玩家站位
+        if(!reach.has(key(sx,sy)))continue;
+        const bx2=b[0]-2*DIRS[d][0], by2=b[1]-2*DIRS[d][1];   // 玩家退位
+        if(bx2<=0||by2<=0||bx2>=W-1||by2>=H-1)continue;
+        if(g[by2][bx2]!==FLOOR)continue;
+        if(boxes.some(p=>p[0]===bx2&&p[1]===by2))continue;
+        if(boxDeadlocked(g,W,H,sx,sy,goals))continue;          // 箱子将到站位
+        cands.push({bi,d,sx,sy,bx2,by2,far:goalDist(sx,sy),cnt:pullCnt[bi]});
       }
     }
-    if(!canMove()){ over=true; showOverlay('没地方挪了 😵', false); }
+    if(!cands.length){
+      // 回溯：退回一个历史分支，换不同的拉法继续打乱
+      if(hist.length>2&&backtracks<maxBack){
+        const k=1+Math.floor(rng()*Math.min(5,hist.length-1));
+        const s=hist[hist.length-k];
+        boxes=cloneBoxes(s.boxes);
+        player=[s.player[0],s.player[1]];
+        steps.length=s.stepsLen;lastBox=s.lastBox;pullCount=s.pullCount;
+        for(let t=0;t<pullCnt.length;t++)pullCnt[t]=s.pullCnt[t];
+        hist.length=Math.max(0,hist.length-k);
+        backtracks++;
+        continue;
+      }
+      break;
+    }
+    // 记录拉之前的状态，供回溯使用
+    hist.push({boxes:cloneBoxes(boxes),player:[player[0],player[1]],
+      stepsLen:steps.length,lastBox,pullCount,pullCnt:pullCnt.slice()});
+    if(hist.length>90)hist.shift();
+    shuffle(cands,rng);
+    // ① 每个箱子至少拉两次：只拉一次的箱子必然停在目标格旁边
+    // ② 之后优先换箱子，形成多箱交织的解题顺序
+    let pool=cands.filter(c=>c.cnt<2);
+    if(!pool.length)pool=cands.filter(c=>c.bi!==lastBox);
+    if(!pool.length)pool=cands;
+    pool.sort((a,b)=>b.far-a.far);
+    const top=pool.slice(0,Math.max(1,Math.ceil(pool.length*0.4)));
+    const pick=top[Math.floor(rng()*top.length)];
+    if(player[0]!==pick.sx||player[1]!==pick.sy){
+      const path=pathTo(reach,player,[pick.sx,pick.sy]);
+      if(!path)break;
+      if(path.length)steps.push({type:'walk',path});
+    }
+    boxes[pick.bi]=[pick.sx,pick.sy];
+    player=[pick.bx2,pick.by2];
+    steps.push({type:'pull',d:pick.d});
+    lastBox=pick.bi;
+    pullCount++;
+    pullCnt[pick.bi]++;
   }
-  function showOverlay(text, canContinue){
-    $('ov-text').textContent=text;
-    $('ov-text').style.whiteSpace='pre-line';
-    $('ov-continue').style.display = canContinue ? '' : 'none';
-    overlay.classList.add('show');
+
+  /* ---- 开局净化：不许箱子"贴着目标格"（含压在上面）----
+     继续做逆向拉箱（这些步骤逆序重放后成为正解的前缀，依旧可逆、依旧可解），
+     直到每个箱子离所有目标都至少隔一格；顺路也尽量别让箱子互相贴着。 */
+  const nearGoal=(x,y)=>goals.some(q=>dist([x,y],q)<2);
+  const nearBox=(x,y,skip)=>boxes.some((b,i)=>i!==skip&&dist([x,y],b)<2);
+  const dirty=()=>boxes.some(b=>nearGoal(b[0],b[1]));
+  let cleanGuard=0;
+  const maxClean=cfg.pulls+boxes.length*24;
+  while(dirty()&&cleanGuard++<maxClean){
+    const reach=reachable(g,W,H,player[0],player[1],boxes);
+    const opts=[];
+    for(let bi=0;bi<boxes.length;bi++){
+      const b=boxes[bi];
+      const wasDirty=nearGoal(b[0],b[1])||nearBox(b[0],b[1],bi);
+      for(let d=0;d<4;d++){
+        const sx=b[0]-DIRS[d][0], sy=b[1]-DIRS[d][1];
+        if(!reach.has(key(sx,sy)))continue;
+        const bx2=b[0]-2*DIRS[d][0], by2=b[1]-2*DIRS[d][1];
+        if(bx2<=0||by2<=0||bx2>=W-1||by2>=H-1)continue;
+        if(g[by2][bx2]!==FLOOR)continue;
+        if(boxes.some(p=>p[0]===bx2&&p[1]===by2))continue;
+        if(boxDeadlocked(g,W,H,sx,sy,goals))continue;
+        // 落点越干净越好：别又贴到目标或别的箱子上
+        let bad=0;
+        if(nearGoal(sx,sy))bad+=10;
+        for(let j=0;j<boxes.length;j++)
+          if(j!==bi&&dist([sx,sy],boxes[j])<2)bad+=5;
+        opts.push({bi,d,sx,sy,bx2,by2,bad,wasDirty});
+      }
+    }
+    if(!opts.length)break;
+    let pool=opts.filter(o=>o.wasDirty);       // 优先把"犯规"的箱子拉走
+    if(!pool.length)pool=opts;
+    const minBad=Math.min(...pool.map(o=>o.bad));
+    const best=pool.filter(o=>o.bad===minBad);
+    const pick=best[Math.floor(rng()*best.length)];
+    const path=pathTo(reach,player,[pick.sx,pick.sy]);
+    if(!path)break;
+    if(path.length)steps.push({type:'walk',path});
+    boxes[pick.bi]=[pick.sx,pick.sy];
+    player=[pick.bx2,pick.by2];
+    steps.push({type:'pull',d:pick.d});
   }
-  function hideOverlay(){ overlay.classList.remove('show'); }
+  // 净化尽力而为；若玩家被箱子围住实在拉不动，交给后处理把残余贴邻箱剔除
+  if(!steps.length)return null;
 
-  function newGame(){
-    board=emptyBoard(); score=0; over=false; won=false; keepPlaying=false;
-    mergedPos=null; newPos=null;
-    hideOverlay();
-    addTile(); addTile(); render();
+  // 逆序重放 = 正向显式解（纯方向键序列）
+  const solution=[];
+  for(let k=steps.length-1;k>=0;k--){
+    const s=steps[k];
+    if(s.type==='pull')solution.push(s.d);
+    else for(let j=s.path.length-1;j>=0;j--)solution.push(REV[s.path[j]]);
   }
+  /* ---- 后处理：彻底消除"开局就压在目标格上"的绿箱子 ----
+     ① 重放解，找出从头到尾没被推过的箱子：它白占一个目标，连同目标一起删掉
+        （它本来就是障碍且从不被推动，删掉只会让通路更宽，不影响解法）
+     ② 在解的时间线上找第一个"所有箱子都不在目标格"的状态，作为新开局，
+        解取它的后缀。后缀仍是从该状态通向通关的合法方向序列，可解性不受影响。
+  */
+  // 重放整条解：记录哪些箱子被推过、以及每个箱子最终落在哪个目标格
+  const moved=new Set();
+  let finalPos=cloneBoxes(boxes);
+  {
+    let p=[player[0],player[1]], bs=cloneBoxes(boxes);
+    for(const dd of solution){
+      const dx=DIRS[dd][0],dy=DIRS[dd][1], nx=p[0]+dx, ny=p[1]+dy;
+      let bi=-1;
+      for(let i=0;i<bs.length;i++)if(bs[i][0]===nx&&bs[i][1]===ny){bi=i;break;}
+      if(bi>=0){bs[bi]=[nx+dx,ny+dy];moved.add(bi);}
+      p=[nx,ny];
+    }
+    finalPos=bs;
+  }
+  /* 开局要剔除的箱子：
+     ① 全程没被推过（白占一个目标）
+     ② 压在目标格上或紧挨着目标格 —— 看着像"生成错位/白送一步"
+     删箱子的同时删掉它最终归位的那个目标格。箱子只是障碍，
+     删掉只会让通路更宽，玩家按键序列和其余箱子的轨迹都不变，解依旧有效。*/
+  const nearSet=(x,y,gs)=>gs.some(q=>dist([x,y],q)<2);
+  const dropIdx=new Set();
+  for(let i=0;i<boxes.length;i++)if(!moved.has(i))dropIdx.add(i);
+  const dropGoal=new Set();
+  for(const i of dropIdx)dropGoal.add(key(finalPos[i][0],finalPos[i][1]));
+  // 迭代剔除：删掉一批箱子后，它们的归位点也不再是目标，
+  // 原本"贴着那些目标"的箱子往往自动变干净，避免连锁多删。
+  for(let pass=0;pass<boxes.length;pass++){
+    const fGoals=goals.filter(q=>!dropGoal.has(key(q[0],q[1])));
+    let added=0;
+    for(let i=0;i<boxes.length;i++){
+      if(dropIdx.has(i))continue;
+      if(nearSet(boxes[i][0],boxes[i][1],fGoals)){
+        dropIdx.add(i);
+        dropGoal.add(key(finalPos[i][0],finalPos[i][1]));
+        added++;
+      }
+    }
+    if(!added)break;
+  }
+  const keepIdx=[];
+  for(let i=0;i<boxes.length;i++)if(!dropIdx.has(i))keepIdx.push(i);
+  if(!keepIdx.length)return null;
+  const finalGoals=goals.filter(q=>!dropGoal.has(key(q[0],q[1])));
+  if(finalGoals.length!==keepIdx.length)return null;
+  const gset=new Set(finalGoals.map(q=>key(q[0],q[1])));
+  // 干净开局：每个箱子离所有目标至少隔一格（不压、不贴）
+  const allClean=arr=>arr.every(b=>finalGoals.every(q=>dist(b,q)>=2));
 
-  const KEY={
-    ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down',
-    a:'left',d:'right',w:'up',s:'down',A:'left',D:'right',W:'up',S:'down'
-  };
-  document.addEventListener('keydown',e=>{
-    const dir=KEY[e.key];
-    if(dir){ e.preventDefault(); move(dir); }
-  });
-  let sx=0,sy=0;
-  boardEl.addEventListener('touchstart',e=>{
-    const t=e.changedTouches[0]; sx=t.clientX; sy=t.clientY;
-  },{passive:true});
-  boardEl.addEventListener('touchend',e=>{
-    const t=e.changedTouches[0], dx=t.clientX-sx, dy=t.clientY-sy;
-    if(Math.max(Math.abs(dx),Math.abs(dy))<24) return;
-    move(Math.abs(dx)>Math.abs(dy) ? (dx>0?'right':'left') : (dy>0?'down':'up'));
-  },{passive:true});
+  let cut=-1, finalBoxes=null, finalPlayer=null;
+  {
+    let p=[player[0],player[1]], bs=cloneBoxes(boxes);
+    let cur=keepIdx.map(i=>bs[i]);
+    if(allClean(cur)){cut=0;finalBoxes=cur;finalPlayer=[p[0],p[1]];}
+    else{
+      for(let k=0;k<solution.length;k++){
+        const dd=solution[k],dx=DIRS[dd][0],dy=DIRS[dd][1];
+        const nx=p[0]+dx, ny=p[1]+dy;
+        let bi=-1;
+        for(let i=0;i<bs.length;i++)if(bs[i][0]===nx&&bs[i][1]===ny){bi=i;break;}
+        if(bi>=0)bs[bi]=[nx+dx,ny+dy];
+        p=[nx,ny];
+        cur=keepIdx.map(i=>bs[i]);
+        if(allClean(cur)){cut=k+1;finalBoxes=cur;finalPlayer=[p[0],p[1]];break;}
+      }
+    }
+  }
+  if(cut<0||!finalBoxes)return null;           // 找不到干净开局就丢弃
+  // 难度主要来自推数与绕路，但别把关卡删得太空
+  const minBoxes=Math.min(cfg.boxes,Math.max(2,Math.floor(cfg.boxes*0.45)));
+  if(finalBoxes.length<minBoxes)return null;
+  const finalSolution=solution.slice(cut);
+  const lvl={grid:g,W,H,boxes:finalBoxes,goals:finalGoals,
+             player:finalPlayer,solution:finalSolution};
 
-  $('new-game').addEventListener('click',newGame);
-  $('ov-restart').addEventListener('click',newGame);
-  $('ov-continue').addEventListener('click',()=>{ keepPlaying=true; hideOverlay(); });
+  // 关键：逐步模拟复核裁剪后的解，解不通直接丢弃
+  const st=simulate(lvl,finalSolution);
+  if(!st)return null;
+  if(st.pushes<2)return null;
 
-  newGame();
-})();
+  // 硬约束兜底：不压/不贴目标格、箱子彼此不贴、无死锁箱、不卡凹口
+  if(!allClean(finalBoxes))return null;
+  if(finalBoxes.some((b,i)=>finalBoxes.some((c,j)=>j>i&&dist(b,c)<2)))return null;
+  if(looksStuck(g,W,H,finalBoxes))return null;
+  const finalDead=computeDeadSquares(g,W,H,finalGoals);
+  if(computeFrozen(g,W,H,finalBoxes,finalGoals,finalDead).size)return null;
+  let distSum=0, adjPairs=0;
+  for(const b of finalBoxes){let m=1e9;for(const q of finalGoals)m=Math.min(m,dist(b,q));distSum+=m;}
+  for(let i=0;i<finalBoxes.length;i++)for(let j=i+1;j<finalBoxes.length;j++)
+    if(dist(finalBoxes[i],finalBoxes[j])<2)adjPairs++;
+  const score=st.pushes*3+(finalSolution.length-st.pushes)*0.04
+    +st.boxChanges*8+st.counterPushes*6+distSum*4+finalBoxes.length*25
+    -adjPairs*18;
+  lvl.pushes=st.pushes;lvl.walks=finalSolution.length-st.pushes;
+  lvl.score=score;lvl.counter=st.counterPushes;lvl.changes=st.boxChanges;
+  lvl.verified=!!st;
+  return lvl;
+}
+
+/* ---------- 关卡生成主流程 ---------- */
+async function generateLevel(diff){
+  const myToken=++genToken;
+  if(typeof releaseDir==='function')releaseDir();
+  if(typeof cancelDemo==='function')cancelDemo();
+  showGen();
+  await new Promise(r=>setTimeout(r,20));
+  const cfg=DIFF[diff];
+  let best=null, qualified=null, samples=0;
+  const t0=Date.now();
+  const maxSamples=diff>=5?48:28;
+  const budget=diff>=5?5600:3400;
+  // 反复采样，只保留"最绕"的那个关卡；每轮让出一帧，界面不卡
+  for(let t=0;t<maxSamples && Date.now()-t0<budget;t++){
+    if(myToken!==genToken)return;
+    const lvl=generateRaw(diff);
+    if(lvl){
+      samples++;
+      if(lvl.pushes>=cfg.minPushes&&(!qualified||lvl.score>qualified.score))qualified=lvl;
+      if(!best||lvl.score>best.score||(lvl.score===best.score&&lvl.pushes>best.pushes))best=lvl;
+      // 达标且够绕就提前收工
+      if(qualified&&qualified.score>=cfg.target)break;
+    }
+    await new Promise(r=>setTimeout(r,0));
+  }
+  best=qualified||best;                 // 只要采到达标关卡就优先交付它
+  if(!best){
+    // 极端情况：临时降低打乱深度重试，仍然保证带解可通关
+    const saved=cfg.pulls;
+    cfg.pulls=Math.max(20,Math.floor(saved*0.4));
+    for(let t=0;t<12;t++){
+      const lvl=generateRaw(diff);
+      if(lvl&&(!best||lvl.score>best.score))best=lvl;
+    }
+    cfg.pulls=saved;
+  }
+  // 出厂前最后一道闸：再独立跑一遍显式解，通不过就重新采样
+  if(best&&!simulate(best,best.solution)){
+    best=null;
+    for(let t=0;t<20;t++){
+      const lvl=generateRaw(diff);
+      if(lvl&&simulate(lvl,lvl.solution)&&(!best||lvl.score>best.score))best=lvl;
+    }
+  }
+  if(myToken!==genToken)return;
+  hideGen();
+  if(!best){alert('生成失败，请点「换一关」重试');return;}
+  best.verified=true;
+  level=best;
+  level.deadSquares=computeDeadSquares(level.grid,level.W,level.H,level.goals);
+  state={boxes:cloneBoxes(level.boxes),player:[level.player[0],level.player[1]],
+         pushes:0,moves:0,won:false};
+  history=[];hintBox=null;deadWarn=[];
+  startedAt=Date.now();
+  refreshDeadWarn();updateStats();resize();
+}
+
+/* ---------- 游戏逻辑 ---------- */
+function boxesOnGoals(){
+  const s=new Set(level.goals.map(p=>key(p[0],p[1])));
+  return state.boxes.filter(b=>s.has(key(b[0],b[1]))).length;
+}
+function occupied(x,y){
+  for(let i=0;i<state.boxes.length;i++)if(state.boxes[i][0]===x&&state.boxes[i][1]===y)return i;
+  return -1;
+}
+function refreshDeadWarn(){
+  deadWarn=deadBoxes(state.boxes,level.goals);
+  const el=document.getElementById('deadWarn');
+  if(!el)return;
+  if(deadWarn.length){
+    const t=document.getElementById('deadWarnTxt');
+    if(t)t.textContent='⚠️ 箱子卡进死角/半凹了，当前局面已无解 · 点右边一键回到安全局面';
+    el.classList.add('show');
+  }else el.classList.remove('show');
+}
+function undoToSafe(){                    // 一直撤销到没有任何箱子被推死
+  if(demoRunning)cancelDemo();
+  let n=0;
+  while(history.length&&n<400&&deadBoxes(state.boxes,level.goals).length){
+    const h=history.pop();
+    state.boxes=h.boxes;state.player=h.player;state.pushes=h.pushes;state.moves=h.moves;
+    n++;
+  }
+  hintBox=null;refreshDeadWarn();updateStats();draw();
+}
+function tryMove(d,silent){
+  if(state.won||!level.W)return;
+  if(demoRunning&&!silent)return;          // 演示播放期间锁住手动操作
+  const dx=DIRS[d][0],dy=DIRS[d][1];
+  const nx=state.player[0]+dx, ny=state.player[1]+dy;
+  if(nx<=0||ny<=0||nx>=level.W-1||ny>=level.H-1)return;
+  if(level.grid[ny][nx]!==FLOOR)return;
+  const bi=occupied(nx,ny);
+  if(bi>=0){
+    const bx2=nx+dx, by2=ny+dy;
+    if(bx2<=0||by2<=0||bx2>=level.W-1||by2>=level.H-1)return;
+    if(level.grid[by2][bx2]!==FLOOR)return;
+    if(occupied(bx2,by2)>=0)return;
+    if(!silent)history.push({boxes:cloneBoxes(state.boxes),player:[state.player[0],state.player[1]],
+      pushes:state.pushes,moves:state.moves});
+    state.boxes[bi]=[bx2,by2];state.player=[nx,ny];
+    state.pushes++;state.moves++;
+  }else{
+    if(!silent)history.push({boxes:cloneBoxes(state.boxes),player:[state.player[0],state.player[1]],
+      pushes:state.pushes,moves:state.moves});
+    state.player=[nx,ny];state.moves++;
+  }
+  hintBox=null;
+  if(silent){
+    if(boxesOnGoals()===level.goals.length&&level.goals.length===state.boxes.length)state.won=true;
+    return;
+  }
+  refreshDeadWarn();
+  updateStats();draw();
+  if(boxesOnGoals()===level.goals.length&&level.goals.length===state.boxes.length)onWin();
+}
+function undo(){
+  if(demoRunning)cancelDemo();
+  if(!history.length||state.won)return;
+  const h=history.pop();
+  state.boxes=h.boxes;state.player=h.player;state.pushes=h.pushes;state.moves=h.moves;
+  hintBox=null;refreshDeadWarn();updateStats();draw();
+}
+function resetLevel(){
+  cancelDemo();
+  history=[];hintBox=null;
+  state.boxes=cloneBoxes(level.boxes);
+  state.player=[level.player[0],level.player[1]];
+  state.pushes=0;state.moves=0;state.won=false;
+  startedAt=Date.now();refreshDeadWarn();updateStats();draw();
+}
+
+/* ---------- 提示：从当前局面 BFS 找一条解 ---------- */
+function bfsHint(){
+  const g=level.grid,W=level.W,H=level.H,goals=level.goals;
+  const gs=new Set(goals.map(p=>key(p[0],p[1])));
+  const isWin=b=>b.every(p=>gs.has(key(p[0],p[1])));
+  const sk=b=>b.map(p=>key(p[0],p[1])).sort((a,c)=>a-c).join(',');
+  const start=cloneBoxes(state.boxes);
+  const startKey=sk(start)+'@'+key(state.player[0],state.player[1]);
+  const seen=new Set([startKey]);
+  const q=[{boxes:start,player:[state.player[0],state.player[1]],first:null}];
+  let nodes=0,head=0;
+  while(head<q.length){
+    const cur=q[head++];nodes++;
+    if(nodes>45000)return null;
+    const reach=reachable(g,W,H,cur.player[0],cur.player[1],cur.boxes);
+    for(let i=0;i<cur.boxes.length;i++){
+      const b=cur.boxes[i];
+      for(let d=0;d<4;d++){
+        const dx=DIRS[d][0],dy=DIRS[d][1];
+        const px=b[0]-dx,py=b[1]-dy,nx=b[0]+dx,ny=b[1]+dy;
+        if(!reach.has(key(px,py)))continue;
+        if(nx<=0||ny<=0||nx>=W-1||ny>=H-1)continue;
+        if(g[ny][nx]!==FLOOR)continue;
+        if(cur.boxes.some(p=>p[0]===nx&&p[1]===ny))continue;
+        if(boxDeadlocked(g,W,H,nx,ny,goals))continue;
+        if(level.deadSquares&&level.deadSquares.has(key(nx,ny)))continue;
+        const nb=cloneBoxes(cur.boxes);nb[i]=[nx,ny];
+        const first=cur.first||[nx,ny];
+        if(isWin(nb))return first;
+        const k=sk(nb)+'@'+key(b[0],b[1]);
+        if(seen.has(k))continue;seen.add(k);
+        q.push({boxes:nb,player:[b[0],b[1]],first});
+      }
+    }
+  }
+  return null;
+}
+function showHint(){
+  if(state.won||!level.W)return;
+  const dead=deadBoxes(state.boxes,level.goals);
+  if(dead.length){flashHintText('😵 已推死，撤销吧');return;}
+  let target=null;
+  // 初始局面直接用生成时那条已验证的解
+  if(history.length===0&&level.solution&&level.solution.length){
+    let player=[level.player[0],level.player[1]], boxes=cloneBoxes(level.boxes);
+    for(const d of level.solution){
+      const nx=player[0]+DIRS[d][0],ny=player[1]+DIRS[d][1];
+      const bi=occupiedAt(boxes,nx,ny);
+      if(bi>=0){target=[nx+DIRS[d][0],ny+DIRS[d][1]];boxes[bi]=[target[0],target[1]];break;}
+      player=[nx,ny];
+    }
+  }
+  if(!target)target=bfsHint();
+  if(!target){flashHintText('🤔 建议重开再看');return;}
+  hintBox=target;draw();
+  clearTimeout(hintTimer);
+  hintTimer=setTimeout(()=>{hintBox=null;draw();},4500);
+}
+function occupiedAt(boxes,x,y){
+  for(let i=0;i<boxes.length;i++)if(boxes[i][0]===x&&boxes[i][1]===y)return i;
+  return -1;
+}
+function flashHintText(msg){
+  const ids=['hintBtn','dpHint'], txt=msg||'😵 撤销吧';
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=txt;});
+  setTimeout(()=>{ids.forEach(id=>{const el=document.getElementById(id);if(el)el.textContent='💡 提示';});},1800);
+}
+
+/* ---------- 渲染 ---------- */
+function resize(){
+  const dpr=window.devicePixelRatio||1;
+  const wrap=document.getElementById('boardWrap');
+  const maxW=wrap.clientWidth-8, maxH=wrap.clientHeight-8;
+  const cw=level.W||10, ch=level.H||10;
+  cell=Math.max(11,Math.min(54,Math.floor(Math.min(maxW/cw,maxH/ch))));
+  const W=cw*cell,H=ch*cell;
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+}
+function draw(){
+  if(!level.W)return;
+  const W=level.W,H=level.H;
+  ctx.clearRect(0,0,W*cell,H*cell);
+  ctx.fillStyle='#0a0f24';ctx.fillRect(0,0,W*cell,H*cell);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    if(level.grid[y][x]===WALL){
+      ctx.fillStyle=((x+y)%2)?'#3a4570':'#323c64';
+      ctx.fillRect(x*cell,y*cell,cell,cell);
+      ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=1;
+      ctx.strokeRect(x*cell+.5,y*cell+.5,cell-1,cell-1);
+    }else{
+      ctx.fillStyle=((x+y)%2)?'#151c38':'#121831';
+      ctx.fillRect(x*cell,y*cell,cell,cell);
+    }
+  }
+  for(const p of level.goals){
+    ctx.save();ctx.translate(p[0]*cell+cell/2,p[1]*cell+cell/2);
+    ctx.fillStyle='rgba(58,160,255,.18)';
+    ctx.beginPath();ctx.arc(0,0,cell*.44,0,7);ctx.fill();
+    ctx.strokeStyle='#3aa0ff';ctx.lineWidth=2;
+    ctx.setLineDash([4,3]);ctx.lineDashOffset=-(Date.now()/40)%7;
+    ctx.beginPath();ctx.arc(0,0,cell*.30,0,7);ctx.stroke();ctx.restore();
+  }
+  const gs=new Set(level.goals.map(p=>key(p[0],p[1])));
+  for(let bi=0;bi<state.boxes.length;bi++){
+    const b=state.boxes[bi];
+    const on=gs.has(key(b[0],b[1]));
+    const dead=deadWarn.indexOf(bi)>=0;
+    const px=b[0]*cell,py=b[1]*cell,pad=cell*.10;
+    const grd=ctx.createLinearGradient(px,py,px,py+cell);
+    if(dead){grd.addColorStop(0,'#ff8a94');grd.addColorStop(1,'#c22d3d');}
+    else if(on){grd.addColorStop(0,'#4ade80');grd.addColorStop(1,'#22a85a');}
+    else{grd.addColorStop(0,'#ffce6b');grd.addColorStop(1,'#c8841f');}
+    ctx.save();
+    if(dead){ctx.shadowColor='#ff5d6c';ctx.shadowBlur=14;}
+    ctx.fillStyle=grd;roundRect(px+pad,py+pad,cell-pad*2,cell-pad*2,4);ctx.fill();
+    ctx.strokeStyle=dead?'rgba(255,255,255,.75)':(on?'rgba(255,255,255,.5)':'rgba(120,60,0,.4)');
+    ctx.lineWidth=dead?2:1.5;ctx.stroke();
+    ctx.strokeStyle=dead?'rgba(255,255,255,.5)':(on?'rgba(255,255,255,.35)':'rgba(120,60,0,.35)');
+    ctx.beginPath();
+    ctx.moveTo(px+cell/2,py+pad+3);ctx.lineTo(px+cell/2,py+cell-pad-3);
+    ctx.moveTo(px+pad+3,py+cell/2);ctx.lineTo(px+cell-pad-3,py+cell/2);ctx.stroke();
+    if(dead){ctx.fillStyle='#fff';ctx.font='bold '+Math.max(9,Math.floor(cell*.5))+'px sans-serif';
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✕',px+cell/2,py+cell/2+1);}
+    ctx.restore();
+  }
+  const cx=state.player[0]*cell+cell/2, cy=state.player[1]*cell+cell/2, r=cell*.30;
+  ctx.save();ctx.shadowColor='#5cf2b3';ctx.shadowBlur=10;ctx.fillStyle='#5cf2b3';
+  ctx.beginPath();ctx.arc(cx,cy,r,0,7);ctx.fill();ctx.restore();
+  ctx.fillStyle='#0b1e16';ctx.beginPath();ctx.arc(cx,cy,r*.45,0,7);ctx.fill();
+  if(hintBox){
+    ctx.save();ctx.strokeStyle='#ff5d6c';ctx.lineWidth=2.5;
+    ctx.setLineDash([5,4]);ctx.lineDashOffset=-(Date.now()/50)%9;
+    ctx.strokeRect(hintBox[0]*cell+2,hintBox[1]*cell+2,cell-4,cell-4);ctx.restore();
+  }
+}
+
+/* ---------- UI ---------- */
+function diffName(){return ['入门','普通','困难','噩梦','地狱','深渊'][(+document.getElementById('diff').value)-1];}
+function updateStats(){
+  document.getElementById('sMoves').textContent=state.moves;
+  document.getElementById('sPushes').textContent=state.pushes;
+  document.getElementById('sRef').textContent=level.pushes?level.pushes:'—';
+  document.getElementById('sBoxStat').innerHTML='<b>'+boxesOnGoals()+'/'+level.goals.length+'</b>就位';
+  document.getElementById('sBoxStat').className='stat'+(boxesOnGoals()===level.goals.length?' good':'');
+  document.getElementById('sStreak').textContent=streak;
+  document.getElementById('lvlBadge').textContent=
+    '难度 '+diffName()+' · 第 '+(streak+1)+' 关 · '+(level.pushes||0)+'推 ✓已验证';
+}
+function fmtTime(s){const m=Math.floor(s/60),ss=s%60;return m+':'+(ss<10?'0':'')+ss;}
+function tickTimer(){
+  if(startedAt)document.getElementById('sTime').textContent=fmtTime(Math.floor((Date.now()-startedAt)/1000));
+}
+function showGen(){document.getElementById('genOverlay').classList.add('show');}
+function hideGen(){document.getElementById('genOverlay').classList.remove('show');}
+function onWin(){
+  if(typeof releaseDir==='function')releaseDir();
+  if(demoMode){demoMode=false;return;}       // 演示不计入连胜
+  streak++;
+  const d=+document.getElementById('diff').value;
+  if(!bestSeen[d]||bestSeen[d]>state.moves)bestSeen[d]=state.moves;
+  document.getElementById('winTitle').textContent=
+    '解法含 '+level.pushes+' 次推箱 · 切换箱子 '+level.changes+' 次 · 逆向远推 '+level.counter+' 次';
+  document.getElementById('winStats').textContent='你的成绩：移动 '+state.moves+' · 推箱 '+state.pushes;
+  document.getElementById('winOpt').textContent=bestSeen[d]?'本难度最佳移动数：'+bestSeen[d]:'';
+  document.getElementById('winStreak').textContent='🔥 当前连胜 '+streak;
+  document.getElementById('winOverlay').classList.add('show');
+}
+
+/* ---------- 解法演示：把出厂那条已验证的解从头走一遍 ---------- */
+function setDemoLabel(on){
+  const ids=['demoBtn','dpDemo'], txt=on?'⏹ 停止':'🎬 演示';
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)el.textContent=txt;});
+}
+function cancelDemo(){demoToken++;demoRunning=false;demoMode=false;setDemoLabel(false);}
+function finishDemo(){
+  demoMode=false;demoRunning=false;setDemoLabel(false);
+  const solved=boxesOnGoals()===level.goals.length&&level.goals.length===state.boxes.length;
+  state.won=solved;
+  refreshDeadWarn();updateStats();draw();
+  document.getElementById('winTitle').textContent=solved
+    ?'✅ 解法演示完成 · 本关确证可通关'
+    :'演示被中断，可重开再看一遍';
+  document.getElementById('winStats').textContent=
+    '出厂解法 '+level.solution.length+' 步 / '+level.pushes+' 次推箱，已逐步走通';
+  document.getElementById('winOpt').textContent=
+    '关卡本身 100% 有解；玩到「无解」是箱子被推死了，撤销或重开即可';
+  document.getElementById('winStreak').textContent='';
+  document.getElementById('winOverlay').classList.add('show');
+}
+async function playDemo(){
+  if(demoRunning){cancelDemo();return;}
+  if(!level.W||!level.solution||!level.solution.length)return;
+  document.getElementById('winOverlay').classList.remove('show');
+  resetLevel();                                 // 回到初始局面再演示
+  const my=++demoToken;
+  demoRunning=true;demoMode=true;setDemoLabel(true);
+  const dirs=level.solution;
+  const batch=Math.max(1,Math.ceil(dirs.length/420));   // 深档也约 7 秒走完
+  for(let i=0;i<dirs.length;i+=batch){
+    if(!demoRunning||my!==demoToken)return;             // 已被取消
+    for(let j=i;j<Math.min(i+batch,dirs.length);j++){
+      if(state.won)break;
+      tryMove(dirs[j],true);
+    }
+    updateStats();draw();
+    await new Promise(r=>setTimeout(r,16));
+  }
+  if(my!==demoToken||!demoRunning)return;
+  finishDemo();
+}
+
+/* ---------- 输入 ---------- */
+const KEYS={'ArrowUp':0,'ArrowDown':1,'ArrowLeft':2,'ArrowRight':3,
+  'w':0,'s':1,'a':2,'d':3,'W':0,'S':1,'A':2,'D':3};
+document.addEventListener('keydown',e=>{
+  if(KEYS[e.key]!==undefined){e.preventDefault();if(!startedAt)startedAt=Date.now();tryMove(KEYS[e.key]);}
+  else if(e.key==='z'||e.key==='Z'||e.key==='u'||e.key==='U')undo();
+  else if(e.key==='r'||e.key==='R')resetLevel();
+  else if(e.key==='n'||e.key==='N')nextLevel();
+  else if(e.key==='h'||e.key==='H')showHint();
+  else if(e.key==='v'||e.key==='V')playDemo();
+});
+let tStart=null,mDown=false,mStart=null;
+function swipe(clientX,clientY,ox,oy){
+  const r=cv.getBoundingClientRect();
+  const dx=clientX-r.left-ox, dy=clientY-r.top-oy;
+  if(Math.abs(dx)<cell*.55&&Math.abs(dy)<cell*.55)return false;
+  if(Math.abs(dx)>Math.abs(dy))tryMove(dx>0?3:2);else tryMove(dy>0?1:0);
+  return true;
+}
+cv.addEventListener('touchstart',e=>{e.preventDefault();const t=e.touches[0],r=cv.getBoundingClientRect();
+  tStart={x:t.clientX-r.left,y:t.clientY-r.top};},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();if(!tStart)return;
+  const t=e.touches[0];if(swipe(t.clientX,t.clientY,tStart.x,tStart.y))tStart=null;},{passive:false});
+cv.addEventListener('touchend',()=>{tStart=null;},{passive:false});
+cv.addEventListener('mousedown',e=>{const r=cv.getBoundingClientRect();
+  mStart={x:e.clientX-r.left,y:e.clientY-r.top};mDown=true;});
+cv.addEventListener('mousemove',e=>{if(!mDown||!mStart)return;
+  if(swipe(e.clientX,e.clientY,mStart.x,mStart.y)){mStart=null;mDown=false;}});
+cv.addEventListener('mouseup',()=>{mDown=false;mStart=null;});
+cv.addEventListener('mouseleave',()=>{mDown=false;mStart=null;});
+
+/* ---------- 手机端十字方向键：点一下走一步，按住连走 ---------- */
+let holdT=0, repT=0, pressedEl=null, suppressMouseUntil=0;
+function releaseDir(){
+  clearTimeout(holdT);clearInterval(repT);holdT=0;repT=0;
+  if(pressedEl){pressedEl.classList.remove('pressed');pressedEl=null;}
+}
+function dirPress(el,d,fromTouch){
+  if(fromTouch)suppressMouseUntil=Date.now()+800;   // 屏蔽触摸后合成的鼠标事件
+  else if(Date.now()<suppressMouseUntil)return;
+  releaseDir();
+  pressedEl=el;el.classList.add('pressed');
+  if(!startedAt)startedAt=Date.now();
+  tryMove(d);
+  holdT=setTimeout(()=>{repT=setInterval(()=>tryMove(d),95);},280);
+}
+function bindDir(id,d){
+  const el=document.getElementById(id);
+  el.addEventListener('touchstart',e=>{e.preventDefault();dirPress(el,d,true);},{passive:false});
+  el.addEventListener('touchend',e=>{e.preventDefault();releaseDir();},{passive:false});
+  el.addEventListener('touchcancel',releaseDir);
+  el.addEventListener('mousedown',e=>{e.preventDefault();dirPress(el,d,false);});
+  el.addEventListener('mouseup',releaseDir);
+  el.addEventListener('mouseleave',releaseDir);
+}
+bindDir('dpUp',0);bindDir('dpDown',1);bindDir('dpLeft',2);bindDir('dpRight',3);
+document.addEventListener('mouseup',releaseDir);
+document.addEventListener('touchend',releaseDir);
+document.addEventListener('touchcancel',releaseDir);
+window.addEventListener('blur',releaseDir);
+
+document.getElementById('dpUndo').onclick=undo;
+document.getElementById('dpReset').onclick=resetLevel;
+document.getElementById('dpHint').onclick=showHint;
+document.getElementById('dpDemo').onclick=playDemo;
+document.getElementById('dpNext').onclick=nextLevel;
+
+document.getElementById('undoBtn').onclick=undo;
+document.getElementById('resetBtn').onclick=resetLevel;
+document.getElementById('hintBtn').onclick=showHint;
+document.getElementById('demoBtn').onclick=playDemo;
+document.getElementById('nextBtn').onclick=nextLevel;
+document.getElementById('deadUndo').onclick=undoToSafe;
+document.getElementById('diff').onchange=()=>{streak=0;nextLevel();};
+document.getElementById('winReplay').onclick=()=>{
+  document.getElementById('winOverlay').classList.remove('show');resetLevel();};
+document.getElementById('winNext').onclick=()=>{
+  document.getElementById('winOverlay').classList.remove('show');nextLevel();};
+function nextLevel(){generateLevel(+document.getElementById('diff').value);}
+
+window.addEventListener('resize',resize);
+/* ==== 启动 ==== */
+level={W:0,H:0};
+state={boxes:[],player:[0,0],pushes:0,moves:0,won:false};
+timerId=setInterval(tickTimer,500);
+startedAt=Date.now();
+generateLevel(6);
+resize();
 </script>
 </body>
 </html>
